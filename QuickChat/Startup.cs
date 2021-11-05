@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using System.Security.Cryptography;
 using CSL.Encryption;
 using System.Security.Principal;
+using CSL.Webserver;
 
 namespace QuickChat
 {
@@ -25,15 +26,9 @@ namespace QuickChat
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
+            app.UseReverseProxyClient();
+            app.UseSecurityWrapperClient();
             app.UseWebSockets()
-                .Use((HttpContext context, Func<Task> next ) =>
-                {
-                    if(context.Request.Headers.ContainsKey("Security-Wrapper-User"))
-                    {
-                        context.User = new GenericPrincipal(new GenericIdentity(context.Request.Headers["Security-Wrapper-User"]), new string[] { });
-                    }
-                    return next();
-                })
                 .Use(async (HttpContext context, Func<Task> next) =>
                 {
                     if(context.WebSockets.IsWebSocketRequest)
@@ -42,7 +37,7 @@ namespace QuickChat
                         RandomNumberGenerator.Fill(RandomName);
                         string AltUserName = Passwords.Adjectives[RandomName[0]] + " " + Passwords.Adjectives[RandomName[1]] + " " + Passwords.Pokemon[RandomName[2]];
                         WebSocket socket = await context.WebSockets.AcceptWebSocketAsync();
-                        using (User user = new User(context.User.Identity.Name ?? AltUserName, socket))
+                        using (User user = new User(context.User.Identity?.Name ?? AltUserName, socket))
                         {
                             await user.Send();
                             while (user.MsgHandler(await user.Receive())) ;
